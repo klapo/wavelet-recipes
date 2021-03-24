@@ -120,8 +120,8 @@ def wavelet_power(
 
     # Calculate the normalized wavelet and Fourier power spectra,
     # as well as the Fourier equivalent periods for each wavelet scale.
-    power = np.abs(wave ** 2)
-    fft_power = np.abs(fft ** 2)
+    power = np.abs(wave) ** 2
+    fft_power = np.abs(fft) ** 2
     period = 1 / freqs
 
     # Power spectra significance test, where the ratio power / sig95 > 1.
@@ -218,7 +218,16 @@ def coi_scale_avg(coi, scales):
     return min_index, max_index
 
 
-def wavelet_coherent(s1, s2, dx, dj, s0, J, mother):
+def wavelet_coherent(
+    s1,
+    s2,
+    dx,
+    dj,
+    s0,
+    J,
+    mother,
+    norm_kwargs={'detrend': True, 'standardize': True},
+    ):
     '''
     Calculate coherence between two vectors for a given wavelet. Currently
     only the Morlet wavelet is implemented. Returns the wavelet linear coherence
@@ -263,14 +272,11 @@ def wavelet_coherent(s1, s2, dx, dj, s0, J, mother):
 
     assert np.size(s1) == np.size(s2), 's1 and s2 must be the same size.'
 
-# Replace with Ge 2008 test based on two white noise processes - no MC
-#     if sig_testing:
-#         alpha1, _, _ = wavelet.ar1(s1)  # Lag-1 autocorrelation for red noise
-#         alpha2, _, _ = wavelet.ar1(s2)  # Lag-1 autocorrelation for red noise
-
     # s1 and s2 MUST be the same size
     assert s1.shape == s2.shape, "Input signals must share the exact same shape."
 
+    s1_norm = standardize(s1, **norm_kwargs)
+    s2_norm = standardize(s2, **norm_kwargs)
 
     # Calculates the CWT of the time-series making sure the same parameters
     # are used in both calculations.
@@ -281,18 +287,18 @@ def wavelet_coherent(s1, s2, dx, dj, s0, J, mother):
     # We need a 2D matrix for the math that follows
     scales = np.atleast_2d(sj)
 
-    # Smooth the wavelet spectra before truncating.
-    if mother.name == 'Morlet':
-        s1 = wavelet_obj.smooth(np.abs(W1) ** 2, dx, dj, sj)
-        s2 = wavelet_obj.smooth(np.abs(W2) ** 2, dx, dj, sj)
-
     # Perform the cross-wavelet transform
-    W12 = (W1) * (W2.conj())
+    W12 = (W1 / (scales.T)**(1/2)) * ((W2 / (scales.T)**(1/2)).conj())
 
-    # Now the wavelet transform coherence
+    # Coherence
+
+    # Smooth the wavelet spectra before truncating.
+    # @ this is terrible variable usage and needs to be fixed.
     if mother.name == 'Morlet':
-        s12 = wavelet_obj.smooth(W12, dx, dj, sj)
-    WCT = np.abs(s12 ** 2) / (s1 * s2)
+        sW1 = wavelet_obj.smooth(np.abs(W1) ** 2, dx, dj, sj)
+        sW2 = wavelet_obj.smooth(np.abs(W2) ** 2, dx, dj, sj)
+        sW12 = wavelet_obj.smooth(W12, dx, dj, sj)
+    WCT = np.abs(sW12) ** 2 / (sW1 * sW2)
     aWCT = np.angle(W12)
     # @ fix this incorrect angle conversion.
     angle = (0.5 * np.pi - aWCT) * 180 / np.pi
@@ -301,7 +307,7 @@ def wavelet_coherent(s1, s2, dx, dj, s0, J, mother):
     # @ If the individual wavelets are scale rectified, then this step is...
     # redundant? Introduces an incorrect scaling? Unclear, but should be
     # addressed.
-    W12 = W12 / scales.T
+    # W12 = W12 / scales.T
 
     # @ Return the wavelet scales as well
     # @ better names to reflect fourier vs wavelet frequency/scale
