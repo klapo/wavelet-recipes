@@ -247,7 +247,7 @@ def wavelet_coherent(
             are assumed to have equal spacing.
         dj - float, number of suboctaves per octave expressed as a fraction.
             Default value is 1 / 12 (12 suboctaves per octave)
-        s0 -
+        s0 - Smallest scale of the wavelet (if unsure = 2 * dt)
         J - float, number of octaves expressed as a power of 2 (e.g., the
             default value of 7 / dj means 7 powers of 2 octaves.
         mother - pycwt wavelet object, 'Morlet' is the only valid selection as
@@ -275,42 +275,39 @@ def wavelet_coherent(
     # s1 and s2 MUST be the same size
     assert s1.shape == s2.shape, "Input signals must share the exact same shape."
 
-    s1_norm = standardize(s1, **norm_kwargs)
-    s2_norm = standardize(s2, **norm_kwargs)
+    s1_norm = cwt_stat.standardize(s1, **norm_kwargs)
+    s2_norm = cwt_stat.standardize(s2, **norm_kwargs)
 
     # Calculates the CWT of the time-series making sure the same parameters
     # are used in both calculations.
-    _kwargs = dict(dj=dj, s0=s0, J=J, wavelet=mother)
-    W1, sj, freq, coi, _, _ = wavelet.cwt(s1, dx, dj, s0, J, mother)
-    W2, _, _, _, _, _ = wavelet.cwt(s2, dx, dj, s0, J, mother)
+    W1, sj, freq, coi, _, _ = wavelet.cwt(s1_norm, dx, dj, s0, J, mother)
+    W2, _, _, _, _, _ = wavelet.cwt(s2_norm, dx, dj, s0, J, mother)
 
     # We need a 2D matrix for the math that follows
     scales = np.atleast_2d(sj)
+    periods = np.atleast_2d(1 / freq)
 
     # Perform the cross-wavelet transform
-    W12 = (W1 / (scales.T)**(1/2)) * ((W2 / (scales.T)**(1/2)).conj())
+    W12 = W1 * W2.conj()
+    # Here I follow the R biwavelet package for the implementation of the
+    # scale rectification. Note that the R package normalizes by the largest
+    # wavelet scale. I choose to not include that scaling factor here.
+    # W12_corr = W1 * W2.conj() * np.max(periods) / periods.T
+    W12_corr = W1 * W2.conj() / periods.T
 
     # Coherence
 
     # Smooth the wavelet spectra before truncating.
-    # @ this is terrible variable usage and needs to be fixed.
     if mother.name == 'Morlet':
-        sW1 = wavelet_obj.smooth(np.abs(W1) ** 2, dx, dj, sj)
-        sW2 = wavelet_obj.smooth(np.abs(W2) ** 2, dx, dj, sj)
-        sW12 = wavelet_obj.smooth(W12, dx, dj, sj)
+        sW1 = wavelet_obj.smooth((np.abs(W1) ** 2 / scales.T), dx, dj, sj)
+        sW2 = wavelet_obj.smooth((np.abs(W2) ** 2 / scales.T), dx, dj, sj)
+        sW12 = wavelet_obj.smooth((W12 / scales.T), dx, dj, sj)
     WCT = np.abs(sW12) ** 2 / (sW1 * sW2)
     aWCT = np.angle(W12)
     # @ fix this incorrect angle conversion.
     angle = (0.5 * np.pi - aWCT) * 180 / np.pi
 
-    # Rectify the XWT after calculating coherence
-    # @ If the individual wavelets are scale rectified, then this step is...
-    # redundant? Introduces an incorrect scaling? Unclear, but should be
-    # addressed.
-    # W12 = W12 / scales.T
-
-    # @ Return the wavelet scales as well
     # @ better names to reflect fourier vs wavelet frequency/scale
     scales = np.squeeze(scales)
 
-    return (WCT, aWCT, W12, 1 / freq, coi, angle, s1, s2)
+    return (WCT, aWCT, W12, W12_corr, 1 / freq, coi, angle, s1, s2)
