@@ -8,6 +8,7 @@ from scipy.ndimage.filters import gaussian_filter
 import pyfocs
 import pycwt as wavelet
 from pycwt.helpers import find
+from tqdm import tqdm
 
 
 def standardize(s, detrend=True, standardize=True, remove_mean=False):
@@ -189,6 +190,8 @@ def wavelet_power(
         scale_avg = None
         scale_avg_signif = None
 
+    # @ Rename period and scales to better reflect that period is the inverse
+    # fourier frequencies and that scales are the inverse wavelet frequencies.
     return (signal_norm, period, coi, power,
             glbl_signif, glbl_power, sig95,
             scale_avg, scale_avg_signif, scales)
@@ -275,8 +278,8 @@ def wavelet_coherent(
     # s1 and s2 MUST be the same size
     assert s1.shape == s2.shape, "Input signals must share the exact same shape."
 
-    s1_norm = cwt_stat.standardize(s1, **norm_kwargs)
-    s2_norm = cwt_stat.standardize(s2, **norm_kwargs)
+    s1_norm = standardize(s1, **norm_kwargs)
+    s2_norm = standardize(s2, **norm_kwargs)
 
     # Calculates the CWT of the time-series making sure the same parameters
     # are used in both calculations.
@@ -310,4 +313,130 @@ def wavelet_coherent(
     # @ better names to reflect fourier vs wavelet frequency/scale
     scales = np.squeeze(scales)
 
-    return (WCT, aWCT, W12, W12_corr, 1 / freq, coi, angle, s1, s2)
+    return (WCT, aWCT, W12, W12_corr, 1 / freq, coi, angle, sW1, sW2)
+
+
+def wct_mc_sig(
+    wavelet,
+    J,
+    dj,
+    dt,
+    s0,
+    sfunc_args1=[],
+    sfunc_args2=[],
+    sfunc_kwargs1={},
+    sfunc_kwargs2={},
+    mc_count=60,
+    slen=None,
+    sig_lvl=0.95,
+    sfunc=None,
+):
+    '''
+    sfunc - a function handle for generating the synthetic data
+        for the Monte-Carlo simulation. The default function is
+        pycwt.rednoise(). Function must accept `N` as the first argument
+        and return an array of length `N`.
+    '''
+
+    if slen is None:
+        # Choose N so that largest scale has at least
+        # some part outside the COI
+        slen = s0 * (2 ** (J * dj)) / dt
+
+    # Assign the length of the synthetic signal
+    N = slen
+
+    # Assign the function for generating synthetic data
+    if sfunc is None:
+        # @ Replace with a functional red noise generator
+        sfunc = pcywt.rednoise
+
+    # Peak the details of the cwt output for a single realization
+    # of the noise function.
+    noise1 = sfunc(N, *sfunc_args1, **sfunc_kwargs1)
+
+    # Check that sfunc returns an array with the necessary properties
+    if not len(noise1) == N:
+        raise ValueError('sfunc must return data of length N')
+
+    nW1, sj, freq, coi, _, _ = pycwt.cwt(
+        noise1, dt=dt, dj=dj, s0=s0, J=J, wavelet=wavelet
+    )
+
+    period = np.ones([1, N]) / freq[:, None]
+    coi = np.ones([J + 1, 1]) * coi[None, :]
+    outsidecoi = (period <= coi)
+    scales = np.ones([1, N]) * sj[:, None]
+    sig95 = np.zeros(J + 1)
+    maxscale = find(outsidecoi.any(axis=1))[-1]
+    sig95[outsidecoi.any(axis=1)] = np.nan
+
+    coh = np.ma.zeros([J + 1, N, mc_count])
+
+    # Displays progress bar with tqdm
+    for n_mc in tqdm(range(mc_count)):#, disable=not progress):
+        # Generates a synthetic signal using the provided function and parameters
+
+        noise1 = sfunc(N, *sfunc_args1, **sfunc_kwargs1)
+        noise2 = sfunc(N, *sfunc_args2, **sfunc_kwargs2)
+
+        # Calculate the cross wavelet transform of both red-noise signals
+        kwargs = dict(dt=dt, dj=dj, s0=s0, J=J, wavelet=wavelet)
+        nW1, sj, freq, coi, _, _ = pycwt.cwt(noise1, **kwargs)
+        nW2, sj, freq, coi, _, _ = pycwt.cwt(noise2, **kwargs)
+        nW12 = nW1 * nW2.conj()
+
+        # Smooth wavelet wavelet transforms and calculate wavelet coherence
+        # between both signals.
+
+        S1 = wavelet.smooth(np.abs(nW1) ** 2 / scales, dt, dj, sj)
+        S2 = wavelet.smooth(np.abs(nW2) ** 2 / scales, dt, dj, sj)
+        S12 = wavelet.smooth(nW12 / scales, dt, dj, sj)
+
+        R2 = np.ma.array(np.abs(S12) ** 2 / (S1 * S2), mask=~outsidecoi)
+        coh[:, :, n_mc] = R2
+
+    period = period[:, 0]
+
+    return coh, period, scales, coi
+
+
+def coi_where(period, coi, data):
+    '''
+    Finds where the period by num samples array is outside the coi.
+    Useful for creating masked numpy arrays.
+
+    INPUTS:
+    period - N array, the wavelet periods
+    coi - M array, the coi location for each sample. M should
+        be the number of samples.
+
+    RETURNS:
+    outside_coi - N by M array of booleans. Is True where
+        the wavelet is effected by the coi.
+
+    EXAMPLE:
+        outside_coi = pycwt_stat_helpers.coi_where(period, coi, WCT)
+        masked_WCT = np.ma.array(WCT, mask=~outside_coi)
+    '''
+
+    coi_matrix = np.ones(np.shape(data)) * coi
+    period_matrix = (np.ones(np.shape(data)).T * period).T
+
+    outside_coi = period_matrix < coi_matrix
+
+    return outside_coi
+
+
+def ar1_generator(N, alpha, noise):
+    '''
+    Generates a Markov chain lag-1 process.
+    '''
+
+    y = np.zeros((3 * N,))
+    # Simulate a longer period and just return the last N point
+    # to remove edge effects.
+    for t in range(1, 3 * N):
+        y[t] = alpha * y[t - 1] + np.random.normal(scale=std)
+
+    return y[-N:]
