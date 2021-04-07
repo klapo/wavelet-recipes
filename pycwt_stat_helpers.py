@@ -528,6 +528,6 @@ def ar1_generator(N, alpha, noise):
     # Simulate a longer period and just return the last N point
     # to remove edge effects.
     for t in range(1, 3 * N):
-        y[t] = alpha * y[t - 1] + np.random.normal(scale=std)
+        y[t] = alpha * y[t - 1] + np.random.normal(scale=noise)
 
     return y[-N:]
