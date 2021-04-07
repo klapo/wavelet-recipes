@@ -15,14 +15,16 @@ def standardize(s, detrend=True, standardize=True, remove_mean=False):
     '''
     Helper function for pre-processing data, specifically for wavelet analysis
 
-    INPUTS:
-        s - numpy array of shape (n,) to be normalized
-        detrend - Linearly detrend s
-        standardize - divide by the standard deviation
-        remove_mean - remove the mean of s. Exclusive with detrend.
+    Parameters
+    ----------
+        s : numpy array of shape (n,) to be normalized
+        detrend : Linearly detrend s
+        standardize : divide by the standard deviation
+        remove_mean : remove the mean of s. Exclusive with detrend.
 
-    OUTPUTS:
-        snorm - numpy array of shape (n,)
+    Returns
+    ----------
+        snorm : numpy array of shape (n,)
     '''
 
     # Derive the variance prior to any detrending
@@ -62,6 +64,8 @@ def wavelet_power(
     variance=None,
     alpha=None,
     rectify=True,
+    significance_test=True,
+    sig_kwargs={},
 ):
     '''
     Helper function for using the pycwt library since the steps in this
@@ -71,22 +75,45 @@ def wavelet_power(
     (https://pycwt.readthedocs.io/en/latest/tutorial.html)
 
     The resulting spectra are rectified following Liu 2007
+
+    Parameters
+    ----------
+        signal : ndarray
+        dx : float
+        x : ndarray
+        mother : pycwt wavelet object
+        octaves : tuple, optional
+        scales_to_avg : list, optional
+        glbl_power_var_scaling : boolean, optional
+        norm_kwargs : dict
+        variance : float, optional
+        alpha : float, optional
+        rectify : boolean, optional
+        significance_test : boolean, optional
+        sig_kwargs : dict, optional
+
+    Reutnrs
+    ----------
     '''
 
     # If we do not normalize by the std, we need to find the variance
     if not norm_kwargs['standardize'] and variance is None:
         std = np.std(signal)
-        var = std ** 2  # Variance
+        var = std ** 2
     # For strongly non-stationary vectors, estimating the (white noise)
     # variance from the data itself is poorly defined. This option allows
     # the user to pass a pre-determined variance.
-
     elif variance is not None:
         var = variance
     # If the data were standardized, the variance should be 1 by definition
     # (assuming normally distributed processes)
     else:
         var = 1.
+
+    if significance_test and 'sig_lvl' in sig_kwargs:
+        sig_lvl = sig_kwargs['sig_lvl']
+    else:
+        sig_lvl = 0.95
 
     # Standardize/detrend/demean the input signal
     signal_norm = standardize(signal, **norm_kwargs)
@@ -107,43 +134,59 @@ def wavelet_power(
         # Number of powers of two with dj sub-octaves
         J = octaves[1]
 
-    # Lag-1 autocorrelation for red noise-based significance testing
-#     try:
-    alpha, _, _ = wavelet.ar1(signal_norm)
-#     except:
-# Try to remove the trend, as that is often the issue
-# Finally, just skip this step and the significance testing when requested
-# or if the second try fails
-
     # Perform the wavelet transform using the parameters defined above.
     wave, scales, freqs, coi, fft, fftfreqs = wavelet.cwt(
         signal_norm, dx, dj, s0, J, mother)
 
     # Calculate the normalized wavelet and Fourier power spectra,
     # as well as the Fourier equivalent periods for each wavelet scale.
+    # Note that this power is not normalized as in TC98 equation 8, the factor
+    # of dt^(1/2) is missing.
     power = np.abs(wave) ** 2
     fft_power = np.abs(fft) ** 2
     period = 1 / freqs
 
-    # Power spectra significance test, where the ratio power / sig95 > 1.
-    signif, fft_theor = wavelet.significance(var, dx, scales, 0, alpha,
-                                             significance_level=0.95,
-                                             wavelet=mother)
-    sig95 = np.ones([1, N]) * signif[:, None]
-    sig95 = power / sig95
+    # Do the significance testing for both the local and global spectra
+    if significance_test:
+
+        if 'alpha' not in sig_kwargs:
+            # Lag-1 autocorrelation for red noise-based significance testing
+            alpha, _, _ = wavelet.ar1(signal_norm)
+        else:
+            alpha = sig_kwargs['alpha']
+
+        # Local power spectra significance test, where the ratio power / signif > 1.
+        signif, fft_theor = wavelet.significance(var, dx, scales, 0, alpha,
+                                                 significance_level=sig_lvl,
+                                                 wavelet=mother)
+        sig_ind = np.ones([1, N]) * signif[:, None]
+        sig_ind = power / sig_ind
 
     # Rectify the power spectrum according to Liu et al. (2007)[2]
     if rectify:
         power /= scales[:, None]
 
-    # Then, we calculate the global wavelet spectrum and determine its significance level.
+    # Calculate the global wavelet spectrum
     glbl_power = power.mean(axis=1)
     if glbl_power_var_scaling:
         glbl_power = glbl_power * var
-    dof = N - scales  # Correction for padding at edges
-    glbl_signif, tmp = wavelet.significance(var, dx, scales, 1, alpha,
-                                            significance_level=0.95, dof=dof,
-                                            wavelet=mother)
+
+    # Do the significance testing for the global spectra
+    if significance_test:
+
+        # Global power spectra significance test. Note: this variable  is
+        # different than the local significance variable. Here the global
+        # spectra is reported directly.
+        dof = N - scales  # Correction for padding at edges
+        glbl_signif, tmp = wavelet.significance(var, dx, scales, 1, alpha,
+                                                significance_level=sig_lvl,
+                                                dof=dof, wavelet=mother)
+    # Just return nans in the significance variables as they won't break
+    # e.g. plotting routines.
+    else:
+        glbl_signif = np.ones_like(glbl_power) * np.nan
+        sig_ind = np.ones_like(power) * np.nan
+
     if rectify:
         glbl_signif = glbl_signif / scales
 
@@ -172,19 +215,22 @@ def wavelet_power(
                 scale_avg[:, nint] = dj * dx / Cdelta * power[sel, :].sum(axis=0) / scales[:, None]
 
 
-            try:
-                scale_avg_signif[nint], _ = wavelet.significance(
-                    var, dx, scales, 2, alpha,
-                    significance_level=0.95,
-                    dof=[scales[sel[0]], scales[sel[-1]]],
-                    wavelet=mother
-                )
-            except IndexError:
-                # One of the scales to average was outside the range of the
-                # CWT's scales. Return no significance level for this averaging
-                # interval and move to the next one.
+            if significance_test:
+                try:
+                    scale_avg_signif[nint], _ = wavelet.significance(
+                        var, dx, scales, 2, alpha,
+                        significance_level=0.95,
+                        dof=[scales[sel[0]], scales[sel[-1]]],
+                        wavelet=mother
+                    )
+                except IndexError:
+                    # One of the scales to average was outside the range of the
+                    # CWT's scales. Return no significance level for this averaging
+                    # interval and move to the next one.
+                    scale_avg_signif[nint] = np.nan
+                    continue
+            else:
                 scale_avg_signif[nint] = np.nan
-                continue
 
     else:
         scale_avg = None
@@ -193,7 +239,7 @@ def wavelet_power(
     # @ Rename period and scales to better reflect that period is the inverse
     # fourier frequencies and that scales are the inverse wavelet frequencies.
     return (signal_norm, period, coi, power,
-            glbl_signif, glbl_power, sig95,
+            glbl_signif, glbl_power, sig_ind,
             scale_avg, scale_avg_signif, scales)
 
 
@@ -201,14 +247,21 @@ def coi_scale_avg(coi, scales):
     '''
     Returns the upper and lower coi bounds for scale averaged wavelet power.
 
-    INPUTS:
-        coi - np.array (or similar) indicating the location
-              of the coi
-        scales - np.array (or similar) of the cwt scales.
+    Parameters
+    ----------
+        coi - np.array (or similar)
+            location  of the coi in period space
+        scales - np.array (or similar)
+            The cwt scales that label the coi
 
-    RETURNS:
-        min_index, max_index - indices of the coi scales for
-            the longest/shortest scale in the averaging interval
+    Returns
+    ----------
+        min_index : list
+            indices of the coi scales for the shortest scale in
+            the scale averaging interval
+        max_index : list
+            indices of the coi scales for the shortest scale in
+            the scale averaging interval
     '''
     mindex1 = np.argmin(np.abs(coi[:len(coi)//2] - np.min(scales)))
     mindex2 = np.argmin(np.abs(coi[len(coi)//2:] - np.min(scales)))
@@ -237,38 +290,40 @@ def wavelet_coherent(
     (also known as coherency and wavelet coherency transform), the cross-wavelet
     transform, and the phase angle between signals.
 
-    INPUTS:
-        s1 - 1D numpy array or similar object of length n. Signal one to
-            perform the wavelet linear coherence with against with s2. Assumed
+    Parameters
+    ----------
+        s1 : 1D numpy array or similar object of length n.
+            Signal one to perform the wavelet linear coherence with s2. Assumed
             to be pre-formatted by the `standardaize` function. s1 and s2 must
             be the same size.
-        s2 - 1D numpy array or similar object of length n. Signal two to
-            perform the wavelet linear coherence with against with s1. Assumed
+        s2 : 1D numpy array or similar object of length n.
+            Signal two to perform the wavelet linear coherence with s1. Assumed
             to be pre-formatted by the `standardaize` function. s1 and s2 must
             be the same size.
-        dx - scalar or float. Spacing between elements in s1 and s2. s1 and s2
+        dx : scalar or float. Spacing between elements in s1 and s2. s1 and s2
             are assumed to have equal spacing.
-        dj - float, number of suboctaves per octave expressed as a fraction.
+        dj : float, number of suboctaves per octave expressed as a fraction.
             Default value is 1 / 12 (12 suboctaves per octave)
-        s0 - Smallest scale of the wavelet (if unsure = 2 * dt)
-        J - float, number of octaves expressed as a power of 2 (e.g., the
+        s0 : Smallest scale of the wavelet (if unsure = 2 * dt)
+        J : float, number of octaves expressed as a power of 2 (e.g., the
             default value of 7 / dj means 7 powers of 2 octaves.
-        mother - pycwt wavelet object, 'Morlet' is the only valid selection as
+        mother : pycwt wavelet object, 'Morlet' is the only valid selection as
             a result of requiring an analytic expression for smoothing the
             wavelet.
 
-    RETURNS:
-        WCT - same type as s1 and s2 of length n, the wavelet coherence
+    Returns
+    ----------
+        WCT : same type as s1 and s2 of length n, the wavelet coherence
             transform.
-        aWCT - same type as s1 and s2 of length n, phase angle between s1 and
+        aWCT : same type as s1 and s2 of length n, phase angle between s1 and
             s2.
-        W12 - same type as s1 and s2 of length n, the cross-wavelet transform.
+        W12 : same type as s1 and s2 of length n, the cross-wavelet transform.
             Power is rectified following Veleda et al., 2012.
-        period - numpy array of length p, fourier mode inverse frequency.
-        coi - numpy array  of length n, cone of influence
-        angle - phase angle in degrees
-        w1 - same type as s1 (n by p),  CWT for s1
-        w2 - same type as s1 (n by p),  CWT for s2
+        period : numpy array of length p, fourier mode inverse frequency.
+        coi : numpy array  of length n, cone of influence
+        angle : phase angle in degrees
+        w1 : same type as s1 (n by p),  CWT for s1
+        w2 : same type as s1 (n by p),  CWT for s2
     '''
     assert mother.name == 'Morlet', "XWT requires smoothing, which is only available to the Morlet mother."
     wavelet_obj = wavelet.wavelet._check_parameter_wavelet(mother)
@@ -332,10 +387,39 @@ def wct_mc_sig(
     sfunc=None,
 ):
     '''
-    sfunc - a function handle for generating the synthetic data
-        for the Monte-Carlo simulation. The default function is
-        pycwt.rednoise(). Function must accept `N` as the first argument
-        and return an array of length `N`.
+    Parameters
+    ----------
+        wavelet : pycwt wavelet object class
+        J : int
+            Wavelet's maximum scale.
+        dj : float
+            Number of suboctaves / number of octaves for the wavelet.
+        dt : float
+            Spacing of the time series in time. It is recommended to use the
+            spacing of the data being tested for consistenct.
+        s0 : float
+            Minimum resolvable scale for the wavelet. Recommended value is
+            2 * dt
+        sfunc_args1 : list, optional
+            positional arguments for sfunc for time series one.
+        sfunc_args2 : list
+            positional arguments for sfunc for time series two.
+        sfunc_kwargs1 : dictionary, optional
+        sfunc_kwargs2 : dictionary, optional
+        mc_count : int, optional
+        slen : int, optional
+        sig_lvl : float, optional
+        sfunc : function handle
+            sfunc is used to generate the synthetic data
+            for the Monte-Carlo simulation. The default function is
+            pycwt.rednoise(). Function must accept `N` as the first argument
+            and return an array of length `N`.
+
+    Returns
+    -------
+        coh : ndarray of floats
+            Coherence from each Monte-Carlo draw
+
     '''
 
     if slen is None:
@@ -367,9 +451,9 @@ def wct_mc_sig(
     coi = np.ones([J + 1, 1]) * coi[None, :]
     outsidecoi = (period <= coi)
     scales = np.ones([1, N]) * sj[:, None]
-    sig95 = np.zeros(J + 1)
+    sig_ind = np.zeros(J + 1)
     maxscale = find(outsidecoi.any(axis=1))[-1]
-    sig95[outsidecoi.any(axis=1)] = np.nan
+    sig_ind[outsidecoi.any(axis=1)] = np.nan
 
     coh = np.ma.zeros([J + 1, N, mc_count])
 
@@ -430,7 +514,14 @@ def coi_where(period, coi, data):
 
 def ar1_generator(N, alpha, noise):
     '''
-    Generates a Markov chain lag-1 process.
+    Generates a Markov chain lag-1 process through a brute force approach.
+
+    Parameters
+    -------
+
+    Returns
+    -------
+
     '''
 
     y = np.zeros((3 * N,))
