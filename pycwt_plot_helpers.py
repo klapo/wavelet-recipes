@@ -11,6 +11,7 @@ from matplotlib import colors
 import itertools
 import string
 import numpy as np
+from SRON import SRON
 
 
 def plot_periodogram(
@@ -141,17 +142,6 @@ def plot_wv_power(
     linecolors=None
 ):
 
-    if linecolors is None:
-        colors = [
-            "#3498db",
-            "xkcd:blue",
-            "xkcd:yellow",
-            'xkcd:dark yellow',
-            "#95a5a6", "#34495e",
-        ]
-    else:
-        colors = linecolors
-
     # Empty allocation of keyword dictionaries
     if fig_labels is None:
         fig_labels = dict()
@@ -236,8 +226,8 @@ def plot_wv_power(
             slabels = [None, None]
         if np.size(slabels) < 2:
             slabels = [None, None]
-        ax.plot(x, signal_norm[0], color=colors[0], linewidth=1.5, label=slabels[0])
-        ax.plot(x, signal_norm[1], color=colors[1], linewidth=1.5, label=slabels[1])
+        ax.plot(x, signal_norm[0], color=SRON(2)[0], linewidth=1.5, label=slabels[0])
+        ax.plot(x, signal_norm[1], color=SRON(2)[1], linewidth=1.5, label=slabels[1])
         ax.legend()
     else:
         ax.plot(x, signal_norm, 'k', linewidth=1.5)
@@ -320,7 +310,14 @@ def plot_wv_power(
 
     # Fourth sub-plot, the scale averaged wavelet spectrum.
     if scale_avg is not None:
+
+        # Line colors for each scale averaging
         num_intervals = np.shape(scale_avg)[1]
+        if linecolors is None:
+            colors = SRON(num_intervals)
+        else:
+            colors = linecolors
+
         for nint in np.arange(num_intervals):
             label = '{bs}{p_units} to {ts}{p_units}'.format(
                 bs=avg_scales[nint][0],

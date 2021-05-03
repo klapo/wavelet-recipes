@@ -62,7 +62,6 @@ def wavelet_power(
     glbl_power_var_scaling=True,
     norm_kwargs={'detrend': True, 'standardize': True},
     variance=None,
-    alpha=None,
     rectify=True,
     significance_test=True,
     sig_kwargs={},
@@ -87,7 +86,6 @@ def wavelet_power(
         glbl_power_var_scaling : boolean, optional
         norm_kwargs : dict
         variance : float, optional
-        alpha : float, optional
         rectify : boolean, optional
         significance_test : boolean, optional
         sig_kwargs : dict, optional
@@ -114,6 +112,13 @@ def wavelet_power(
         sig_lvl = sig_kwargs['sig_lvl']
     else:
         sig_lvl = 0.95
+
+    # This is hacky just to not break all of my scripts
+    # by changing the number of outputs.
+    if significance_test and 'local_sig_type' in sig_kwargs:
+        local_sig_type = sig_kwargs['local_sig_type']
+    else:
+        local_sig_type = 'index'
 
     # Standardize/detrend/demean the input signal
     signal_norm = standardize(signal, **norm_kwargs)
@@ -160,7 +165,12 @@ def wavelet_power(
                                                  significance_level=sig_lvl,
                                                  wavelet=mother)
         sig_ind = np.ones([1, N]) * signif[:, None]
-        sig_ind = power / sig_ind
+        # The default behavior is to return a matrix that can be directly used
+        # to draw a single contour following the pycwt_plot_helper functions.
+        # The other option is to just return the local significance levels
+        # as a matrix with dimensions equal to 'wave'.
+        if local_sig_type == 'index':
+            sig_ind = power / sig_ind
 
     # Rectify the power spectrum according to Liu et al. (2007)[2]
     if rectify:
@@ -214,12 +224,11 @@ def wavelet_power(
                 # TC98 eq. 24 does not include the variance as in the tutorial.
                 scale_avg[:, nint] = dj * dx / Cdelta * power[sel, :].sum(axis=0) / scales[:, None]
 
-
             if significance_test:
                 try:
                     scale_avg_signif[nint], _ = wavelet.significance(
                         var, dx, scales, 2, alpha,
-                        significance_level=0.95,
+                        significance_level=sig_lvl,
                         dof=[scales[sel[0]], scales[sel[-1]]],
                         wavelet=mother
                     )
@@ -292,11 +301,11 @@ def wavelet_coherent(
 
     Parameters
     ----------
-        s1 : 1D numpy array or similar object of length n.
+        s1 : 1D numpy array or similar object of length N.
             Signal one to perform the wavelet linear coherence with s2. Assumed
             to be pre-formatted by the `standardaize` function. s1 and s2 must
             be the same size.
-        s2 : 1D numpy array or similar object of length n.
+        s2 : 1D numpy array or similar object of length N.
             Signal two to perform the wavelet linear coherence with s1. Assumed
             to be pre-formatted by the `standardaize` function. s1 and s2 must
             be the same size.
@@ -313,17 +322,23 @@ def wavelet_coherent(
 
     Returns
     ----------
-        WCT : same type as s1 and s2 of length n, the wavelet coherence
-            transform.
-        aWCT : same type as s1 and s2 of length n, phase angle between s1 and
-            s2.
-        W12 : same type as s1 and s2 of length n, the cross-wavelet transform.
-            Power is rectified following Veleda et al., 2012.
-        period : numpy array of length p, fourier mode inverse frequency.
+        WCT : same type as s1 and s2, size PxN
+            The biwavelet linear coherence transform.
+        aWCT : same type as s1 and s2, size of PxN
+            phase angle between s1 and s2.
+        W12 : same type as s1 and s2, size PxN
+            The cross-wavelet transform power, unrectified.
+        W12_corr : the same type as s1 and s2, size PxN
+            Cross-wavelet power, rectified following Veleda et al., 2012 and
+            the R biwavelet package.
+        period : numpy array, length P
+            Fourier mode inverse frequencies.
         coi : numpy array  of length n, cone of influence
         angle : phase angle in degrees
-        w1 : same type as s1 (n by p),  CWT for s1
-        w2 : same type as s1 (n by p),  CWT for s2
+        w1 : same type as s1, size PxN
+            CWT for s1
+        w2 : same type as s1, size PxN
+            CWT for s2
     '''
     assert mother.name == 'Morlet', "XWT requires smoothing, which is only available to the Morlet mother."
     wavelet_obj = wavelet.wavelet._check_parameter_wavelet(mother)
