@@ -1,2 +1,3 @@
 # wavelet-recipes
-My recipes for doing continuous wavelet and biwavelet analysis.
+
+Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libraries.
