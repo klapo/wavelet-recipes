@@ -6,4 +6,4 @@ Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libra
 
 # Example applications
 
-An example of the application of these recipes is shown in my [EGU 2021 presentation](wavelets/presentations/wavelet-applicaiton-example_IGW-EGU-2021.pdf).
+An example of the application of these recipes for detecting Internal Gravity Waves in Distributed Temperature Data is shown in my [EGU 2021 presentation](wavelets/presentations/wavelet-applicaiton-example_IGW-EGU-2021.pdf).
