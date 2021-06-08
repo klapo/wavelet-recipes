@@ -2,3 +2,4 @@
 /__pychache__
 /kgraph
 *.ipynb_checkpoints
+*.pptx*
