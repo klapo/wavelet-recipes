@@ -1,5 +1,9 @@
 # wavelet-recipes
 
-[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/klapo/wavelet-recipes/HEAD?urlpath=https%3A%2F%2Fgithub.com%2Fklapo%2Fwavelet-recipes%2Ftree%2Fmain%2Fnotebooks)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/klapo/wavelet-recipes/HEAD?filepath=notebooks)
 
-Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libraries. Launch the interactive notebooks through the binder link above.
+Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libraries. Launch the interactive notebooks through the binder link above. Note that the Monte-Carlo simulations in the biwavelet-significance notebook will run slowly.
+
+# Example applications
+
+An example of the application of these recipes is shown in my [EGU 2021 presentation](wavelets/presentations/wavelet-applicaiton-example_IGW-EGU-2021.pdf).
