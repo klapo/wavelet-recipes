@@ -25,7 +25,6 @@ def standardize(s, detrend=True, standardize=True, remove_mean=False):
     '''
 
     # Derive the variance prior to any detrending
-    std = s.std()
     smean = s.mean()
 
     if detrend and remove_mean:
@@ -42,7 +41,8 @@ def standardize(s, detrend=True, standardize=True, remove_mean=False):
     if remove_mean:
         snorm = snorm - smean
 
-    # Standardize by the standard deviation
+    # Standardize by the variance
+    std = snorm.std()
     if standardize:
         snorm = (snorm / std)
 
@@ -91,6 +91,9 @@ def wavelet_power(
     ----------
     '''
 
+    norm_kwargs.setdefault('standardize', True)
+    norm_kwargs.setdefault('detrend', True)
+    
     # If we do not normalize by the std, we need to find the variance
     if not norm_kwargs['standardize'] and variance is None:
         std = np.std(signal)
@@ -176,7 +179,7 @@ def wavelet_power(
     # Calculate the global wavelet spectrum
     glbl_power = power.mean(axis=1)
     if glbl_power_var_scaling:
-        glbl_power = glbl_power * var
+        glbl_power = glbl_power / var
 
     # Do the significance testing for the global spectra
     if significance_test:

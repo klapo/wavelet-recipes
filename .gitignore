@@ -1,5 +1,6 @@
 /helper_functions/__pycache__
-/__pychache__
+*/__pychache__
+*/__pycache__/*
 /kgraph
 *.ipynb_checkpoints
 *.pptx*
