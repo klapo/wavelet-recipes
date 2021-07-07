@@ -93,7 +93,7 @@ def wavelet_power(
 
     norm_kwargs.setdefault('standardize', True)
     norm_kwargs.setdefault('detrend', True)
-    
+
     # If we do not normalize by the std, we need to find the variance
     if not norm_kwargs['standardize'] and variance is None:
         std = np.std(signal)
@@ -546,3 +546,117 @@ def ar1_generator(N, alpha, noise):
         y[t] = alpha * y[t - 1] + np.random.normal(scale=noise)
 
     return y[-N:]
+
+
+def nan_sequences(signal, dx, dim='time'):
+    '''
+    Describes properties of NaN blocks, giving their indices, slices, and
+    length.
+
+    Parameters
+    -------
+
+    Returns
+    -------
+
+    '''
+
+    # First, find the indices for the nans
+    # The drop=True makes the first loop easy, but the
+    # indices are now no longer referenced to the original
+    # signal dataset
+    nanind = signal.where(np.isnan(signal), drop=True)
+    ind_beg = [0]
+    ind_end = []
+    for nt2, t2 in enumerate(nanind.time[1:]):
+        t1 = pd.Timestamp(nanind.time.values[nt2])
+        t2 = pd.Timestamp(t2.values)
+        if t2 - t1 > dt:
+            ind_end.append(nt2)
+            ind_beg.append(nt2 + 1)
+    ind_end.append(-1)
+
+    # 3 steps:
+    # 1) Convert back to the original signal's indices
+    # 2) Find the duration of a nan sequence
+    # 3) Give the slice (in time coordinates) for the nan block
+    nan_seq_len = []
+    nan_seq_slc = []
+    nan_seq_ind = []
+
+    for b, e in zip(ind_beg, ind_end):
+        # Duration of the nan sequence in units of time
+        if dim=='time':
+            t1 = pd.Timestamp(nanind.time.values[b])
+            t2 = pd.Timestamp(nanind.time.values[e])
+        else:
+            # Duration of the nan sequence in units of dx
+            t1 = nanind[dim].values[b]
+            t2 = nanind[dim].values[e]
+
+        # Slices of nan blocks
+        nan_seq_slc.append(slice(t1, t2))
+
+        # The indices of nan blocks
+        # (index beg of block, index end of block)
+        nan_seq_ind.append(
+            [
+                np.flatnonzero(signal[dim] == t1)[0],
+                np.flatnonzero(signal[dim] == t2)[0],
+            ]
+        )
+
+        tdiff = np.flatnonzero(signal[dim] == t2)[0] - np.flatnonzero(signal[dim] == t1)[0]
+        nan_seq_len.append(tdiff)
+
+    return nan_seq_ind, nan_seq_slc, nan_seq_len
+
+
+def nan_coi(nan_seq_ind, nan_seq_len, coi, period, signal, dx):
+    '''
+    Rebuilds the COI to have a new, scale-aware COI around nan gaps
+
+    Parameters
+    -------
+
+    Returns
+    -------
+
+    '''
+
+    # We need two copies of the data.
+    # One is just the original coi. We will manipulate it
+    # at the very end when we ammend it with the nan-coi gaps
+    coi_mask = copy.deepcopy(coi)
+    # And now we need just half of the coi
+    coi_half = copy.deepcopy(coi[0:len(coi)//2])
+    # Remove anything with a length longer than the resolvable
+    coi_half[coi_half > np.max(period)] = np.nan
+
+    coi_half_nanless = copy.deepcopy(coi_half)
+    coi_half_nanless = coi_half_nanless[np.flatnonzero(~np.isnan(coi_half_nanless))]
+    coi_half_nanless_len = len(coi_half_nanless)
+
+    nan_mask = np.zeros_like(signal) * np.nan
+
+    for ns, (n1, n2) in enumerate(nan_seq_ind):
+        nan_mask[n1:n2 + 1] = 0
+
+        coi_nanseq_beg = n1 - np.min((nan_seq_len[ns] + 1, coi_half_nanless_len))
+        if coi_nanseq_beg < 0:
+            coi_nanseq_beg = 0
+        fill_values = coi_half_nanless[nan_seq_len[ns]::-1]
+        fill_values[fill_values > nan_seq_len[ns] * dx] = nan_seq_len[ns] * dx
+        nan_mask[coi_nanseq_beg:n1] = fill_values
+
+        coi_nanseq_end = n2 + np.min((nan_seq_len[ns], coi_half_nanless_len))
+        if coi_nanseq_end > len(signal):
+            coi_nanseq_end = len(signal)
+        fill_values = coi_half_nanless[0:nan_seq_len[ns]]
+        fill_values[fill_values > nan_seq_len[ns] * dx] = nan_seq_len[ns] * dx
+        nan_mask[n2:coi_nanseq_end] = fill_values
+
+    # Fill in all the places without nans with the original COI
+    coi_mask[~np.isnan(nan_mask)] = nan_mask[~np.isnan(nan_mask)]
+
+    return(coi_mask)
