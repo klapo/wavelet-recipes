@@ -6,6 +6,7 @@ from scipy.ndimage.filters import gaussian_filter
 import pycwt as wavelet
 from pycwt.helpers import find
 from tqdm import tqdm
+import pandas as pd
 
 
 def standardize(s, detrend=True, standardize=True, remove_mean=False):
@@ -566,6 +567,14 @@ def nan_sequences(signal, dx, dim='time'):
     # indices are now no longer referenced to the original
     # signal dataset
     nanind = signal.where(np.isnan(signal), drop=True)
+
+    # If no NaNs are present return empty lists
+    if nanind.size == 0:
+        nan_seq_len = []
+        nan_seq_slc = []
+        nan_seq_ind = []
+        return nan_seq_ind, nan_seq_slc, nan_seq_len
+
     ind_beg = [0]
     ind_end = []
     for nt2, t2 in enumerate(nanind.time[1:]):
@@ -623,6 +632,8 @@ def nan_coi(nan_seq_ind, nan_seq_len, coi, period, signal, dx):
     -------
 
     '''
+    if (not nan_seq_ind) or (not nan_seq_len):
+        return coi 
 
     # We need two copies of the data.
     # One is just the original coi. We will manipulate it
