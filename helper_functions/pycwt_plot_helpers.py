@@ -102,7 +102,7 @@ def plot_periodogram(
                     [1e-9]
                 ]
             ),
-            'k', alpha=0.3, hatch='x')
+            'k', alpha=0.6, hatch='x')
 
     Yticks = 2 ** np.arange(
         np.ceil(np.log2(period.min())),
