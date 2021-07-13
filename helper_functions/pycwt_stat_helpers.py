@@ -7,6 +7,7 @@ import pycwt as wavelet
 from pycwt.helpers import find
 from tqdm import tqdm
 import pandas as pd
+import copy
 
 
 def standardize(s, detrend=True, standardize=True, remove_mean=False):
@@ -549,7 +550,7 @@ def ar1_generator(N, alpha, noise):
     return y[-N:]
 
 
-def nan_sequences(signal, dx, dim='time'):
+def nan_sequences(signal, dx, dim='time', units=None):
     '''
     Describes properties of NaN blocks, giving their indices, slices, and
     length.
@@ -561,6 +562,17 @@ def nan_sequences(signal, dx, dim='time'):
     -------
 
     '''
+
+    # Derive the
+    if dim == 'time':
+        dt_type_test = pd.Timedelta(seconds=1)
+        if units is None:
+            raise ValueError(
+                'When operating along the time dimension, the units keyword'\
+                ' must be provided.'
+            )
+        units_kwarg = {units: dx}
+        dx_td = pd.Timedelta(**units_kwarg)
 
     # First, find the indices for the nans
     # The drop=True makes the first loop easy, but the
@@ -577,10 +589,14 @@ def nan_sequences(signal, dx, dim='time'):
 
     ind_beg = [0]
     ind_end = []
-    for nt2, t2 in enumerate(nanind.time[1:]):
-        t1 = pd.Timestamp(nanind.time.values[nt2])
-        t2 = pd.Timestamp(t2.values)
-        if t2 - t1 > dt:
+    for nt2, t2 in enumerate(nanind[dim][1:]):
+        if dim == 'time':
+            t1 = pd.Timestamp(nanind[dim].values[nt2])
+            t2 = pd.Timestamp(t2.values)
+        else:
+            t1 = nanind[dim].values[nt2]
+            t2 = t2.values
+        if t2 - t1 > dx_td:
             ind_end.append(nt2)
             ind_beg.append(nt2 + 1)
     ind_end.append(-1)
@@ -633,7 +649,7 @@ def nan_coi(nan_seq_ind, nan_seq_len, coi, period, signal, dx):
 
     '''
     if (not nan_seq_ind) or (not nan_seq_len):
-        return coi 
+        return coi
 
     # We need two copies of the data.
     # One is just the original coi. We will manipulate it
@@ -653,19 +669,32 @@ def nan_coi(nan_seq_ind, nan_seq_len, coi, period, signal, dx):
     for ns, (n1, n2) in enumerate(nan_seq_ind):
         nan_mask[n1:n2 + 1] = 0
 
-        coi_nanseq_beg = n1 - np.min((nan_seq_len[ns] + 1, coi_half_nanless_len))
-        if coi_nanseq_beg < 0:
-            coi_nanseq_beg = 0
-        fill_values = coi_half_nanless[nan_seq_len[ns]::-1]
+        coi_fill_len = np.min(
+            (
+                nan_seq_len[ns] + 1,
+                coi_half_nanless_len,
+                n1
+            )
+        )
+        coi_nanseq_beg = n1 - coi_fill_len
+        fill_values = coi_half_nanless[coi_fill_len - 1::-1]
         fill_values[fill_values > nan_seq_len[ns] * dx] = nan_seq_len[ns] * dx
         nan_mask[coi_nanseq_beg:n1] = fill_values
 
-        coi_nanseq_end = n2 + np.min((nan_seq_len[ns], coi_half_nanless_len))
-        if coi_nanseq_end > len(signal):
-            coi_nanseq_end = len(signal)
-        fill_values = coi_half_nanless[0:nan_seq_len[ns]]
+        coi_fill_len = np.min(
+            (
+                nan_seq_len[ns] + 1,
+                coi_half_nanless_len,
+                len(signal) - (n2 + 1)
+            )
+        )
+        coi_nanseq_end = n2 + coi_fill_len
+        fill_values = coi_half_nanless[0:coi_fill_len]
         fill_values[fill_values > nan_seq_len[ns] * dx] = nan_seq_len[ns] * dx
         nan_mask[n2:coi_nanseq_end] = fill_values
+
+    # Don't overwrite the original COI from edge effects.
+    nan_mask[nan_mask > coi] = coi[nan_mask > coi]
 
     # Fill in all the places without nans with the original COI
     coi_mask[~np.isnan(nan_mask)] = nan_mask[~np.isnan(nan_mask)]
