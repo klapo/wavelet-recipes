@@ -12,6 +12,8 @@ Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libra
 
 [biwavelet-significance](https://nbviewer.jupyter.org/github/klapo/wavelet-recipes/blob/main/notebooks/biwavelet-significance.ipynb): How to do and the development of the Monte-Carlo significance testing code used by the helper functions for biwavelet linear coherence.
 
+[wavelet-normalization.ipynb](https://nbviewer.jupyter.org/github/klapo/wavelet-recipes/blob/main/notebooks/wavelet-normalization.ipynb): An exploration of the normalization keywords and their impact on the spectral scaling of the CWT spectra. Comparisons are made to an FFT spectra. Necessary when comparing between processes with different underlying variances (e.g. different instruments).
+
 # Example applications
 
 An example of the application of these recipes for detecting Internal Gravity Waves in Distributed Temperature Data is shown in my [EGU 2021 presentation](presentations/wavelet-application-example_IGW-EGU-2021.pdf).
