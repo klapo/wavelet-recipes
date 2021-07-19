@@ -511,6 +511,7 @@ def coi_where(period, coi, data):
     period - N array, the wavelet periods
     coi - M array, the coi location for each sample. M should
         be the number of samples.
+    data - N x M array, the data to broadcast the COI mask to.
 
     RETURNS:
     outside_coi - N by M array of booleans. Is True where
@@ -596,9 +597,16 @@ def nan_sequences(signal, dx, dim='time', units=None):
         else:
             t1 = nanind[dim].values[nt2]
             t2 = t2.values
-        if t2 - t1 > dx_td:
+        # Maybe this extra step of checking for time is unnecessary
+        # if we overwrite dx with the Timedelta value if dim=='time'.
+        # I don't have time right now to check.
+        if (t2 - t1 > dx_td) and dim == 'time':
             ind_end.append(nt2)
             ind_beg.append(nt2 + 1)
+        elif (t2 - t1 > dx):
+            ind_end.append(nt2)
+            ind_beg.append(nt2 + 1)
+        
     ind_end.append(-1)
 
     # 3 steps:
