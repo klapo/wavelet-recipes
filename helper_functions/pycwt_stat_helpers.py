@@ -600,10 +600,10 @@ def nan_sequences(signal, dx, dim='time', units=None):
         # Maybe this extra step of checking for time is unnecessary
         # if we overwrite dx with the Timedelta value if dim=='time'.
         # I don't have time right now to check.
-        if (t2 - t1 > dx_td) and dim == 'time':
+        if (dim == 'time') and (t2 - t1 > dx_td):
             ind_end.append(nt2)
             ind_beg.append(nt2 + 1)
-        elif (t2 - t1 > dx):
+        elif (not dim == 'time') and (t2 - t1 > dx):
             ind_end.append(nt2)
             ind_beg.append(nt2 + 1)
         
