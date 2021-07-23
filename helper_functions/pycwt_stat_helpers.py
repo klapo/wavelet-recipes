@@ -10,7 +10,14 @@ import pandas as pd
 import copy
 
 
-def standardize(s, detrend=True, standardize=True, remove_mean=False):
+def standardize(
+    s,
+    detrend=True,
+    standardize=True,
+    remove_mean=False,
+    bandpass_filter=False,
+    bandpass_kwargs=None,
+):
     '''
     Helper function for pre-processing data, specifically for wavelet analysis
 
@@ -20,18 +27,43 @@ def standardize(s, detrend=True, standardize=True, remove_mean=False):
         detrend : Linearly detrend s
         standardize : divide by the standard deviation
         remove_mean : remove the mean of s. Exclusive with detrend.
+        bandpass_filter : band pass the data. NOTE: At the moment I just implement
+            a high-pass filter. This needs to be updated in the future to be a band
+            pass instead.
 
     Returns
     ----------
         snorm : numpy array of shape (n,)
     '''
 
-    # Derive the variance prior to any detrending
-    smean = s.mean()
+    # @ Turn this into a decorator in the future for extra sexy python code
+    def butter_highpass(cutoff, fs, order=5):
+        nyq = 0.5 * fs
+        normal_cutoff = cutoff / nyq
+        b, a = butter(order, normal_cutoff, btype='high', analog=False)
+        return b, a
 
+    def butter_highpass_filter(data, cutoff, fs, order=5):
+        b, a = butter_highpass(cutoff, fs, order=order)
+        y = filtfilt(b, a, data)
+        return y
+    
+    # Logic checking
     if detrend and remove_mean:
         raise ValueError('Only standardize by either removing secular trend or mean, not both.')
+    if (detrend and bandpass_filter) or (remove_mean and bandpass_filter):
+        raise ValueError(
+            'Standardizing can only take one of the following as True:'
+            ' remove_mean, detrend, bandpass_filer.'
+        )
+    if bandpass_filter and bandpass_kwargs is None:
+        raise ValueError(
+            'When using the bandpass filter the bandpass_kwargs must be supplied.'
+        )
 
+    # Derive the variance prior to any treatment
+    smean = s.mean()
+        
     # Remove the trend if requested
     if detrend:
         arbitrary_x = np.arange(0, s.size)
@@ -42,8 +74,16 @@ def standardize(s, detrend=True, standardize=True, remove_mean=False):
 
     if remove_mean:
         snorm = snorm - smean
-
-    # Standardize by the variance
+        
+    if bandpass_filter:
+        bandpass_kwargs.setdefault('order', 5)
+        cutoff = bandpass_kwargs['cutoff']
+        order = bandpass_kwargs['order']
+        fs = bandpass_kwargs['fs']
+        snorm = butter_highpass_filter(s, cutoff, fs, order=order)
+        
+    # Standardize by the variance only after the above
+    # data treatment.
     std = snorm.std()
     if standardize:
         snorm = (snorm / std)
