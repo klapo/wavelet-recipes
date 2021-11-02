@@ -39,7 +39,7 @@ def plot_periodogram(
 
     if levels is None and log_power:
         uq = np.ceil(np.log10(np.quantile(power, 0.95)))
-        lq = np.ceil(np.log10(np.quantile(power, 0.1)))
+        lq = np.ceil(np.log10(np.quantile(power, 0.05)))
         if uq == lq:
             lq = lq - 0.5
             uq = uq + 0.5
