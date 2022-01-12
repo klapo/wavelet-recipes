@@ -4,3 +4,4 @@
 /kgraph
 *.ipynb_checkpoints
 *.pptx*
+*.pyc
