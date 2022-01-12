@@ -13,8 +13,8 @@ from scipy.signal import butter, filtfilt, freqz
 
 def standardize(
     s,
-    detrend=True,
     standardize=True,
+    detrend=False,
     remove_mean=False,
     bandpass_filter=False,
     bandpass_kwargs=None,
@@ -25,12 +25,21 @@ def standardize(
     Parameters
     ----------
         s : numpy array of shape (n,) to be normalized
-        detrend : Linearly detrend s
         standardize : divide by the standard deviation
-        remove_mean : remove the mean of s. Exclusive with detrend.
-        bandpass_filter : band pass the data. NOTE: At the moment I just implement
-            a high-pass filter. This needs to be updated in the future to be a band
-            pass instead.
+        detrend : Linearly detrend s, default is False. Only one of detrend and 
+            bandpass_filter may be True.
+        remove_mean : remove the mean of s. Only one of detrend, remove_mean, and
+            bandpass_filter may be True.
+        bandpass_filter : band pass the data. Only one of detrend and bandpass_filter
+            may be True.
+            NOTE: At the moment I just implement a high-pass filter. This needs to
+            be updated in the future to be a band pass instead.
+        bandpass_kwargs : Dictionary of kwargs passed to the bandpass filter. Must
+            be provided if bandpass_filter = True.
+            Arguments:
+                cutoff : float, desired cutoff frequency of the filter in Hz
+                fs : float, sampling frequency in Hz
+                order : int, order of the filter. Default is 5
 
     Returns
     ----------
