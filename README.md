@@ -17,3 +17,22 @@ Cookbooks for continuous wavelet and biwavelet analysis based on the pycwt libra
 # Example applications
 
 An example of the application of these recipes for detecting Internal Gravity Waves in Distributed Temperature Data is shown in my [EGU 2021 presentation](presentations/wavelet-application-example_IGW-EGU-2021.pdf).
+
+# References
+Each reference is referred to by the initial of the first author and year (e.g., Ge (2008) will be G08).
+
+Allen, M. R., and L. A. Smith (1996), Monte Carlo SSA: Detecting Irregular Oscillations in the Presence of Colored Noise, J. Clim., 9, 3373–3403, doi:10.1175/1520-0442(1996)009<3373:MCSDIO>2.0.CO;2.
+
+Chavez, M., and B. Cazelles (2019), Detecting dynamic spatial correlation patterns with generalized wavelet coherence and non-stationary surrogate data, Sci. Rep., 9(April), 1–9, doi:10.1038/s41598-019-43571-2.
+
+Ge, Z. (2007), Significance tests for the wavelet power and the wavelet power spectrum, Ann. Geophys., 25(11), 2259–2269, doi:10.5194/angeo-25-2259-2007.
+
+Ge, Z. (2008), Significance tests for the wavelet cross spectrum and wavelet linear coherence, Ann. Geophys., 26(2007), 3819–3829, doi:10.5194/angeo-26-3819-2008.
+
+Gilman, D. L., F. J. Fuglister, and J. J. M. Mitchell (1962), On the Power Spectrum of “Red Noise,” J. Atmos. Sci., 20, 182–184, doi:1520-0469(1963)020<0182:OTPSON>2.0.CO;2.
+
+Liu, Y., S. X. Liang, and R. H. Weisberg (2007), Rectification of the Bias in the Wavelet Power Spectrum, J. Atmos. Ocean. Technol., 24, 2093–2102, doi:10.1175/2007JTECHO511.1.
+
+Torrence, C., and G. P. Compo (1998), A Practical Guide to Wavelet Analysis, Bull. Am. Meteorol. Soc., 79(1), 61–78, doi:https://doi.org/10.1175/1520-0477(1998)079<0061:APGTWA>2.0.CO;2.
+
+Veleda, D., R. Montagne, and M. Araujo (2012), Cross-Wavelet Bias Corrected by Normalizing Scales, J. Atmos. Ocean. Technol., 29, 1401–1408, doi:10.1175/JTECH-D-11-00140.1.
