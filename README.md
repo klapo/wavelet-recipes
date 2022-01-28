@@ -35,4 +35,8 @@ Liu, Y., S. X. Liang, and R. H. Weisberg (2007), Rectification of the Bias in th
 
 Torrence, C., and G. P. Compo (1998), A Practical Guide to Wavelet Analysis, Bull. Am. Meteorol. Soc., 79(1), 61–78, doi:https://doi.org/10.1175/1520-0477(1998)079<0061:APGTWA>2.0.CO;2.
 
+Vamos, C., Soltuz, S. M., & Craciun, M. (2007). Order 1 autoregressive process of finite length. ArXiv.
+
 Veleda, D., R. Montagne, and M. Araujo (2012), Cross-Wavelet Bias Corrected by Normalizing Scales, J. Atmos. Ocean. Technol., 29, 1401–1408, doi:10.1175/JTECH-D-11-00140.1.
+
+Zhang, Z., & Moore, J. C. (2012). Comment on “significance tests for the wavelet power and the wavelet power spectrum” by Ge (2007). Annales Geophysicae, 30(12), 1743–1750. https://doi.org/10.5194/angeo-30-1743-2012
