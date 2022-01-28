@@ -580,7 +580,7 @@ def coi_where(period, coi, data):
     return outside_coi
 
 
-def ar1_generator(N, alpha, noise):
+def ar1_generator(N, alpha, noise, init_n_len=3):
     '''
     Generates a Markov chain lag-1 process through a brute force approach.
 
@@ -592,10 +592,10 @@ def ar1_generator(N, alpha, noise):
 
     '''
 
-    y = np.zeros((3 * N,))
+    y = np.zeros((init_n_len * N,))
     # Simulate a longer period and just return the last N point
     # to remove edge effects.
-    for t in range(1, 3 * N):
+    for t in range(1, init_n_len * N):
         y[t] = alpha * y[t - 1] + np.random.normal(scale=noise)
 
     return y[-N:]
