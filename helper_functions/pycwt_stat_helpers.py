@@ -558,13 +558,13 @@ def coi_where(period, coi, data):
     Useful for creating masked numpy arrays.
 
     INPUTS:
-    period - N array, the wavelet periods
-    coi - M array, the coi location for each sample. M should
+    period : N array, the wavelet periods
+    coi : M array, the coi location for each sample. M should
         be the number of samples.
-    data - N x M array, the data to broadcast the COI mask to.
+    data : N x M array, the data to broadcast the COI mask to.
 
     RETURNS:
-    outside_coi - N by M array of booleans. Is True where
+    outside_coi : N by M array of booleans. Is True where
         the wavelet is effected by the coi.
 
     EXAMPLE:
@@ -606,15 +606,35 @@ def nan_sequences(signal, dx, dim='time', units=None):
     Describes properties of NaN blocks, giving their indices, slices, and
     length.
 
-    Parameters
-    -------
+    INPUTS:
+    signal : xarray DataArray, data to search for contiguous NaN blocks
+        within that has a labeled dimension specified by the 'dim'
+        keyword.
+    dx : Float, Step size of the dimension specified by the 'dim' keyword.
+    dim : String, Dimension to index contiguous NaN blocks along in signal.
+        Default is "time". If dim is "time" the units keyword must be
+        specified.
+    units : String, describes the units of dx. Necessary when operating
+        along a "time" dimension.
 
-    Returns
-    -------
+    RETURNS:
+    nan_seq_ind : 2 x N list, where N is the number of contiguous NaN blocks.
+        First element of each list specifies the indices of the NaN block
+        beginning while the second element specifies the end of the NaN.
+    nan_seq_slc : list of length N, each element is a slice across the NaN
+        block.
+    nan_seq_len : list of length N, each element specifies the length of its
+        respective NaN block.
 
+    EXAMPLE:
+        nan_seq_ind, nan_seq_slc, nan_seq_len = cwt_stat.nan_sequences(
+            signal, dt, dim='time', units='seconds'
+        )
     '''
 
-    # Derive the
+    # Assure that the arithmetic of operating along the time dimension will
+    # function by coercing dx and the 'time' dimension to have compatible
+    # data types.
     if dim == 'time':
         dt_type_test = pd.Timedelta(seconds=1)
         if units is None:
