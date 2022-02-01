@@ -294,7 +294,7 @@ def plot_wv_power(
     cax.plot(glbl_power, np.log2(period), 'k-', linewidth=1.5, label='Mean power')
     cax.set_title('c) Global Wavelet Spectrum', loc='left')
     if not coherence:
-        cax.set_xlim([0, np.max([glbl_power.max(), glbl_signif.max()])])
+        cax.set_xlim([0, np.max([np.nanmax(glbl_power), np.nanmax(glbl_signif)])])
         cax.set_xlabel(r'Power [({})^2]'.format(units))
     elif coherence:
         cax.set_xlim([0, 1])
