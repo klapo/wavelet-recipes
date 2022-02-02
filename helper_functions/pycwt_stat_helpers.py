@@ -636,7 +636,6 @@ def nan_sequences(signal, dx, dim='time', units=None):
     # function by coercing dx and the 'time' dimension to have compatible
     # data types.
     if dim == 'time':
-        dt_type_test = pd.Timedelta(seconds=1)
         if units is None:
             raise ValueError(
                 'When operating along the time dimension, the units keyword'\
@@ -742,6 +741,8 @@ def nan_coi(nan_seq_ind, nan_seq_len, coi, period, signal, dx):
     coi_half_nanless = coi_half_nanless[np.flatnonzero(~np.isnan(coi_half_nanless))]
     coi_half_nanless_len = len(coi_half_nanless)
 
+    # @ Is the reference to "signal" necessary here? Or could we
+    # just use the COI variable instead?
     nan_mask = np.zeros_like(signal) * np.nan
 
     for ns, (n1, n2) in enumerate(nan_seq_ind):
