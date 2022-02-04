@@ -28,7 +28,7 @@ def plot_periodogram(
     INPUTS:
 
     RETURNS:
-        None
+        cf : handle for the filled contour object
     '''
 
     # Normalized wavelet power spectrum and significance level contour
